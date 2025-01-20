@@ -306,12 +306,27 @@ class AdvancedResearchScenarios:
     
     async def _save_advanced_dataset(self, conversations: List, metrics: List):
         """Save dataset with comprehensive metadata"""
-        dataset_path = self.base_path / "advanced_config_dataset"
+        dataset_path = self.base_path / "advanced_dataset"
         dataset_path.mkdir(exist_ok=True)
+        
+        # Flatten and preprocess conversations
+        def preprocess_conversation(conv):
+            # Convert context values to strings
+            if 'context' in conv:
+                conv['context'] = {k: str(v) if hasattr(v, 'value') else v 
+                                    for k, v in conv['context'].items()}
+            return conv
+        
+        # Ensure conversations are properly formatted
+        formatted_conversations = [
+            preprocess_conversation(conv) 
+            for conv in conversations 
+            if isinstance(conv, dict)
+        ]
         
         # Create a dictionary with conversations and metrics
         dataset = {
-            'conversations': conversations,
+            'conversations': formatted_conversations,
             'metrics': metrics
         }
         
@@ -319,7 +334,7 @@ class AdvancedResearchScenarios:
         save_dataset(
             dataset,  # Pass the entire dataset dictionary
             output_path=dataset_path,
-            formats=['csv', 'json', 'parquet']
+            formats=['csv', 'json']  # Remove parquet for now
         )
         
     async def _load_model(self) -> ResearchAnalysisModel:

@@ -3,6 +3,7 @@ Training pipeline and model architecture for research analysis
 """
 
 import torch
+from torch.cuda.amp import GradScaler  # Add this import
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from transformers import AutoTokenizer, AutoModel
