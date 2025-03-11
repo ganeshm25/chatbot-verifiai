@@ -6,8 +6,8 @@ import asyncio
 import torch
 import pandas as pd
 from pathlib import Path
-from typing import Dict, List, Optional, Callable
-from data_generation import UnifiedResearchGenerator
+from typing import Dict, List, Optional, Callable, Union
+from data_generation import UnifiedResearchGeneratorA
 from models import ResearchAnalysisModel, TrainingPipeline
 from models.evaluation import EnhancedModelEvaluator
 from utils.helpers import load_config, save_dataset
@@ -15,8 +15,8 @@ from utils.helpers import load_config, save_dataset
 class AdvancedResearchScenarios:
     """Advanced usage scenarios for research generation and analysis"""
     
-    def __init__(self, base_path: Optional[Path] = None):
-        self.base_path = base_path or Path("research_output")
+    def __init__(self, base_path: Optional[Union[Path, str]] = None):
+        self.base_path = Path(base_path) if base_path else Path("research_output")
         self.base_path.mkdir(exist_ok=True)
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
@@ -62,7 +62,7 @@ class AdvancedResearchScenarios:
             }
         }
         
-        generator = UnifiedResearchGenerator(config)
+        generator = UnifiedResearchGeneratorA(config)
         
         # Generate with progress tracking
         async def progress_callback(progress: float, status: str):

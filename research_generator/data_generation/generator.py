@@ -11,6 +11,26 @@ import json
 import re
 from dataclasses import dataclass, asdict
 import pandas as pd
+import logging
+from typing import Dict, List, Tuple, Optional, Union
+from datetime import datetime, timedelta
+import uuid
+from dataclasses import asdict
+
+from .ai_logger import AIInteractionLogger
+from .c2pa_manager import C2PAManager
+from .models import (
+    ResearchContext,
+    AIInteraction,
+    AIInteractionType,
+    ContentProvenance,
+    ConversationPhase,
+    ConversationStyle
+)
+
+from .patterns import PatternManager
+from .edge_cases import EdgeCaseManager
+from .metrics import MetricsCalculator
 
 from .patterns import (
     PatternManager,
@@ -21,21 +41,21 @@ from .patterns import (
 from .edge_cases import EdgeCaseManager, EdgeCaseType
 from .metrics import MetricsCalculator
 
-@dataclass
-class ResearchContext:
-    """Enhanced research context"""
-    domain: str
-    topic: str
-    methodology: str
-    theoretical_framework: str
-    complexity: float
-    phase: ConversationPhase
-    style: ConversationStyle
-    research_questions: List[str]
-    citations: List[Dict[str, str]]
-    variables: Dict[str, Union[str, float]]
+# @dataclass
+# class ResearchContext:
+#     """Enhanced research context"""
+#     domain: str
+#     topic: str
+#     methodology: str
+#     theoretical_framework: str
+#     complexity: float
+#     phase: ConversationPhase
+#     style: ConversationStyle
+#     research_questions: List[str]
+#     citations: List[Dict[str, str]]
+#     variables: Dict[str, Union[str, float]]
 
-class UnifiedResearchGenerator:
+class UnifiedResearchGeneratorA:
     """Enhanced research conversation generator"""
     
     def __init__(self, config: Dict):
@@ -853,29 +873,578 @@ class UnifiedResearchGenerator:
                 "complexity": context.complexity
             }
         }
+class UnifiedResearchGenerator:
+    """Enhanced research conversation generator with AI and C2PA support"""
+    
+    def __init__(self, config: Dict):
+        self.logger = logging.getLogger(__name__)
+        self.config = self._merge_with_defaults(config)
+        
+        # Initialize core components
+        self.pattern_manager = PatternManager()
+        self.edge_case_manager = EdgeCaseManager()
+        self.metrics_calculator = MetricsCalculator()
+        
+        # Initialize new components
+        self.ai_logger = AIInteractionLogger()
+        self.c2pa_manager = C2PAManager()
+        
+        self._initialize_components()
+    
+    def _merge_with_defaults(self, config: Dict) -> Dict:
+        """Merge provided config with defaults including AI and C2PA settings"""
+        defaults = {
+            'size': 50,
+            'min_length': 5,
+            'max_length': 20,
+            'edge_case_ratio': 0.2,
+            'domains': ['education', 'psychology', 'stem'],
+            'complexity_levels': ['basic', 'medium', 'complex'],
+            'ai_settings': {
+                'models': {
+                    'GPT-4': {
+                        'version': '1.0',
+                        'provider': 'OpenAI',
+                        'capabilities': ['text_generation', 'analysis']
+                    }
+                },
+                'interaction_logging': True,
+                'verification_required': True
+            },
+            'c2pa_settings': {
+                'provenance_tracking': True,
+                'verification_level': 'standard',
+                'manifest_generation': True
+            }
+        }
+        return {**defaults, **config}
 
+    def _initialize_components(self):
+        """Initialize generation components"""
+        self.domains = {
+            'education': {
+                'topics': [
+                    "Cognitive Load in Online Learning",
+                    "Social-Emotional Learning Impact",
+                    "Digital Literacy Development",
+                    "Inclusive Education Practices",
+                    "Assessment Methods Innovation"
+                ],
+                'methodologies': [
+                    "Mixed Methods Research",
+                    "Action Research",
+                    "Case Study Analysis",
+                    "Longitudinal Study",
+                    "Experimental Design"
+                ],
+                'frameworks': [
+                    "Constructivist Learning Theory",
+                    "Social Cognitive Theory",
+                    "Transformative Learning Theory",
+                    "Communities of Practice",
+                    "Experiential Learning Model"
+                ]
+            },
+            'psychology': {
+                'topics': [
+                    "Behavioral Intervention Efficacy",
+                    "Cognitive Development Patterns",
+                    "Mental Health Interventions",
+                    "Social Psychology Dynamics",
+                    "Neuropsychological Assessment"
+                ],
+                'methodologies': [
+                    "Experimental Psychology",
+                    "Clinical Trials",
+                    "Cross-sectional Studies",
+                    "Longitudinal Research",
+                    "Meta-analysis"
+                ],
+                'frameworks': [
+                    "Cognitive Behavioral Theory",
+                    "Psychodynamic Framework",
+                    "Social Learning Theory",
+                    "Humanistic Psychology",
+                    "Neuropsychological Theory"
+                ]
+            },
+            'stem': {
+                'topics': [
+                    "Machine Learning Ethics",
+                    "Quantum Computing Applications",
+                    "Renewable Energy Systems",
+                    "Biotechnology Advances",
+                    "Data Science Methods"
+                ],
+                'methodologies': [
+                    "Empirical Analysis",
+                    "Computational Modeling",
+                    "Laboratory Experimentation",
+                    "Statistical Analysis",
+                    "Simulation Studies"
+                ],
+                'frameworks': [
+                    "Systems Theory",
+                    "Information Processing",
+                    "Computational Theory",
+                    "Scientific Method",
+                    "Engineering Design"
+                ]
+            }
+        }
+        
+        # Initialize citation database
+        self.citations = self._initialize_citations()
+    
+    def _initialize_citations(self) -> Dict[str, List[Dict]]:
+        """Initialize domain-specific citation database"""
+        return {
+            domain: [
+                {
+                    'author': f"{last_name} et al.",
+                    'year': str(random.randint(2018, 2024)),
+                    'title': f"Research on {topic.lower()}",
+                    'journal': "Journal of Research",
+                    'doi': f"10.1000/jr.{random.randint(1000, 9999)}"
+                }
+                for last_name in ["Smith", "Johnson", "Williams", "Brown", "Jones"]
+                for topic in self.domains[domain]['topics']
+            ]
+            for domain in self.domains
+        }
+    
+    async def generate_dataset(self) -> Tuple[List[Dict], List[Dict]]:
+        """Generate enhanced dataset with AI interactions and C2PA provenance"""
+        try:
+            conversations = []
+            metrics = []
+            
+            for i in range(self.config['size']):
+                # Generate enhanced context
+                context = await self._generate_research_context()
+                
+                # Generate conversation with AI interactions
+                conversation = await self._generate_conversation_with_ai(context)
+                
+                # Add C2PA provenance
+                if self.config['c2pa_settings']['provenance_tracking']:
+                    conversation = await self._add_c2pa_provenance(conversation, context)
+                
+                # Calculate comprehensive metrics
+                metric = await self._calculate_enhanced_metrics(conversation, context)
+                
+                conversations.append(conversation)
+                metrics.append(metric)
+                
+                if (i + 1) % 10 == 0:
+                    self.logger.info(f"Generated {i + 1}/{self.config['size']} conversations")
+            
+            return conversations, metrics
+            
+        except Exception as e:
+            self.logger.error(f"Error generating dataset: {str(e)}")
+            raise
 
+    async def _generate_research_context(self) -> ResearchContext:
+        """Generate enhanced research context with AI model information"""
+        try:
+            # Select AI model from config
+            ai_model = self._select_ai_model()
+            
+            # Generate base context
+            domain = self._select_random_domain()
+            context = ResearchContext(
+                domain=domain,
+                topic=self._generate_topic(domain),
+                methodology=self._select_methodology(domain),
+                theoretical_framework=self._select_framework(domain),
+                complexity=self._generate_complexity(),
+                phase=self._select_initial_phase(),
+                style=self._select_conversation_style(),
+                research_questions=await self._generate_research_questions(domain),
+                citations=await self._generate_citations(domain),
+                variables=self._generate_research_variables(),
+                ai_model=ai_model,
+                ai_interaction_history=[],
+                content_provenance={}
+            )
+            
+            return context
+            
+        except Exception as e:
+            self.logger.error(f"Error generating research context: {str(e)}")
+            raise
+
+    async def _generate_conversation_with_ai(
+        self,
+        context: ResearchContext
+    ) -> Dict:
+        """Generate conversation with AI interaction tracking"""
+        try:
+            conversation = {
+                "id": str(uuid.uuid4()),
+                "timestamp": datetime.now().isoformat(),
+                "context": asdict(context),
+                "messages": [],
+                "ai_interactions": []
+            }
+            
+            num_exchanges = self._get_conversation_length()
+            current_phase = context.phase
+            
+            for i in range(num_exchanges):
+                # Generate researcher message
+                researcher_msg = await self._generate_researcher_message(
+                    context,
+                    current_phase,
+                    i
+                )
+                
+                # Log AI interaction
+                ai_interaction = await self.ai_logger.log_interaction(
+                    AIInteractionType.RESEARCH_ASSISTANCE,
+                    {"message": researcher_msg["content"]},
+                    {},  # Will be filled after assistant response
+                    context
+                )
+                
+                # Generate assistant response
+                assistant_msg = await self._generate_assistant_response(
+                    context,
+                    researcher_msg,
+                    ai_interaction
+                )
+                
+                # Update AI interaction with response
+                ai_interaction.output = {"message": assistant_msg["content"]}
+                
+                # Log user action (simulated acceptance)
+                await self.ai_logger.log_user_action(
+                    ai_interaction.interaction_id,
+                    "accept",
+                    {"confidence": 0.9}
+                )
+                
+                conversation["messages"].extend([researcher_msg, assistant_msg])
+                conversation["ai_interactions"].append(asdict(ai_interaction))
+                
+                # Update phase if needed
+                if self._should_change_phase():
+                    current_phase = self._get_next_phase(current_phase)
+            
+            return conversation
+            
+        except Exception as e:
+            self.logger.error(f"Error generating conversation: {str(e)}")
+            raise
+
+    async def _add_c2pa_provenance(
+        self,
+        conversation: Dict,
+        context: ResearchContext
+    ) -> Dict:
+        """Add C2PA provenance to conversation"""
+        try:
+            # Convert AI interactions back to objects
+            ai_interactions = [
+                AIInteraction(**interaction)
+                for interaction in conversation["ai_interactions"]
+            ]
+            
+            # Generate provenance
+            provenance = await self.c2pa_manager.generate_provenance(
+                conversation,
+                context,
+                ai_interactions
+            )
+            
+            # Generate manifest
+            manifest = await self.c2pa_manager.generate_manifest(
+                conversation,
+                provenance,
+                ai_interactions
+            )
+            
+            # Add to conversation
+            conversation["c2pa_provenance"] = asdict(provenance)
+            conversation["c2pa_manifest"] = manifest
+            
+            return conversation
+            
+        except Exception as e:
+            self.logger.error(f"Error adding C2PA provenance: {str(e)}")
+            return conversation  # Return original conversation if C2PA fails
+
+    async def _calculate_enhanced_metrics(
+        self,
+        conversation: Dict,
+        context: ResearchContext
+    ) -> Dict:
+        """Calculate comprehensive metrics including AI and C2PA aspects"""
+        try:
+            # Calculate base metrics
+            base_metrics = await self.metrics_calculator.calculate_metrics(
+                conversation,
+                context
+            )
+            
+            # Get AI interaction summary
+            ai_metrics = await self.ai_logger.generate_interaction_summary(
+                conversation["id"]
+            )
+            
+            # Get C2PA verification if available
+            c2pa_metrics = await self._calculate_c2pa_metrics(conversation)
+            
+            return {
+                **base_metrics,
+                "ai_interaction_metrics": ai_metrics,
+                "c2pa_metrics": c2pa_metrics
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error calculating metrics: {str(e)}")
+            return {}
+
+    async def _calculate_c2pa_metrics(self, conversation: Dict) -> Dict:
+        """Calculate C2PA-specific metrics"""
+        if not conversation.get("c2pa_manifest"):
+            return {}
+            
+        try:
+            # Make sure verification is awaitable 
+            if hasattr(self.c2pa_manager.verify_content, '__await__'):
+                verification = await self.c2pa_manager.verify_content(
+                    conversation,
+                    conversation["c2pa_manifest"]
+                )
+            else:
+                # If not awaitable, call it directly
+                verification = self.c2pa_manager.verify_content(
+                    conversation,
+                    conversation["c2pa_manifest"]
+                )
+            
+            return {
+                "verification_status": verification["verified"],
+                "verification_details": verification["details"],
+                "verified_at": verification["timestamp"]
+            }
+        except Exception as e:
+            self.logger.error(f"Provenance calculation error: {type(e)}: {str(e)}")
+            return {}
+
+    def _select_ai_model(self) -> Dict:
+        """Select AI model from configured models"""
+        models = self.config['ai_settings']['models']
+        model_name = next(iter(models))  # Get first model for now
+        return {**models[model_name], "name": model_name}
+
+    def _get_conversation_length(self) -> int:
+        """Determine conversation length"""
+        return random.randint(
+            self.config['min_length'],
+            self.config['max_length']
+        )
+
+    def _should_change_phase(self) -> bool:
+        """Determine if conversation phase should change"""
+        return random.random() < 0.3  # 30% chance to change phase
+
+    # Add these helper methods to the UnifiedResearchGenerator class in generator.py
+
+    def _select_random_domain(self):
+        """Select a random domain from configured domains"""
+        return random.choice(self.config['domains'])
+
+    def _generate_topic(self, domain):
+        """Generate a topic for the given domain"""
+        domain_settings = self.config.get('domain_settings', {}).get(domain, {})
+        topics = domain_settings.get('topics', [f"Research topic in {domain}"])
+        return random.choice(topics)
+
+    def _select_methodology(self, domain):
+        """Select appropriate methodology for the domain"""
+        methodologies = {
+            'education': ['Mixed Methods Research', 'Action Research', 'Case Study Analysis'],
+            'psychology': ['Experimental Research', 'Survey Research', 'Longitudinal Study'],
+            'stem': ['Empirical Analysis', 'Computational Modeling', 'Statistical Analysis']
+        }
+        domain_methods = methodologies.get(domain, ['Research Methodology'])
+        return random.choice(domain_methods)
+
+    def _select_framework(self, domain):
+        """Select theoretical framework for the domain"""
+        frameworks = {
+            'education': ['Constructivist Learning Theory', 'Social Cognitive Theory'],
+            'psychology': ['Cognitive Behavioral Theory', 'Humanistic Psychology'],
+            'stem': ['Systems Theory', 'Information Processing Theory']
+        }
+        domain_frameworks = frameworks.get(domain, ['Theoretical Framework'])
+        return random.choice(domain_frameworks)
+
+    def _generate_complexity(self):
+        """Generate complexity score between 0.3 and 1.0"""
+        return random.uniform(0.3, 1.0)
+
+    def _select_initial_phase(self):
+        """Select initial conversation phase"""
+        return random.choice(list(ConversationPhase))
+
+    def _select_conversation_style(self):
+        """Select conversation style"""
+        return random.choice(list(ConversationStyle))
+
+    async def _generate_research_questions(self, domain):
+        """Generate research questions for the domain"""
+        templates = {
+            'education': [
+                "How does {topic} impact student learning outcomes?",
+                "What factors influence {topic} in educational settings?",
+                "How can {topic} be effectively implemented in classrooms?"
+            ],
+            'psychology': [
+                "What is the relationship between {topic} and behavior?",
+                "How does {topic} affect cognitive development?",
+                "What interventions are effective for {topic}?"
+            ],
+            'stem': [
+                "How can {topic} be optimized for better performance?",
+                "What are the key variables affecting {topic}?",
+                "How does {topic} compare to existing methodologies?"
+            ]
+        }
+        
+        domain_templates = templates.get(domain, ["Research question about {topic}"])
+        topic = self._generate_topic(domain)
+        questions = [template.format(topic=topic) for template in random.sample(domain_templates, min(2, len(domain_templates)))]
+        return questions
+
+    async def _generate_citations(self, domain):
+        """Generate citations for the domain"""
+        authors = ["Smith et al.", "Johnson et al.", "Williams et al.", "Brown et al."]
+        years = [str(year) for year in range(2018, 2024)]
+        
+        citations = []
+        for _ in range(random.randint(2, 4)):
+            citations.append({
+                "author": random.choice(authors),
+                "year": random.choice(years),
+                "title": f"Research on {domain}",
+                "journal": "Journal of Research",
+                "doi": f"10.1000/jr.{random.randint(1000, 9999)}"
+            })
+        
+        return citations
+
+    def _generate_research_variables(self):
+        """Generate research variables"""
+        return {
+            'dependent_var': "research_outcome",
+            'independent_var': "research_intervention",
+            'control_var': "research_baseline",
+            'effect_size': round(random.uniform(0.1, 0.8), 2),
+            'sample_size': random.randint(50, 500)
+        }
+
+    def _get_next_phase(self, current_phase):
+        """Get next logical conversation phase"""
+        phase_order = {
+            ConversationPhase.INTRODUCTION: ConversationPhase.LITERATURE_REVIEW,
+            ConversationPhase.LITERATURE_REVIEW: ConversationPhase.METHODOLOGY,
+            ConversationPhase.METHODOLOGY: ConversationPhase.ANALYSIS,
+            ConversationPhase.ANALYSIS: ConversationPhase.FINDINGS,
+            ConversationPhase.FINDINGS: ConversationPhase.DISCUSSION,
+            ConversationPhase.DISCUSSION: ConversationPhase.CONCLUSION,
+            ConversationPhase.CONCLUSION: ConversationPhase.CONCLUSION
+        }
+        return phase_order.get(current_phase, current_phase)
+
+    async def _generate_researcher_message(self, context, phase, position):
+        """Generate researcher message"""
+        return {
+            "id": str(uuid.uuid4()),
+            "timestamp": (datetime.now() + timedelta(minutes=position*5)).isoformat(),
+            "role": "researcher",
+            "content": f"Research question about {context.topic} in the {phase.value} phase",
+            "metadata": {
+                "phase": phase.value,
+                "style": context.style.value,
+                "position": position,
+                "context_variables": list(context.variables.keys())
+            }
+        }
+
+    async def _generate_assistant_response(self, context, researcher_msg, ai_interaction):
+        """Generate assistant response"""
+        return {
+            "id": str(uuid.uuid4()),
+            "timestamp": (datetime.now() + timedelta(minutes=researcher_msg["metadata"]["position"]*5 + 2)).isoformat(),
+            "role": "assistant",
+            "content": f"Response about {context.topic} using {context.methodology} methodology",
+            "metadata": {
+                "phase": researcher_msg["metadata"]["phase"],
+                "style": context.style.value,
+                "citations_used": [c["doi"] for c in context.citations[:2]],
+                "theoretical_framework": context.theoretical_framework
+            }
+        }
+
+# Example usage:
 async def main():
-    """Example usage"""
+    # Configuration
     config = {
-        'size': 10,
-        'min_length': 3,
-        'max_length': 5,
-        'domains': ['education', 'psychology'],
-        'template_settings': {
-            'use_dynamic_templates': True
+        'size': 2,
+        'domains': ['education'],
+        'ai_settings': {
+            'models': {
+                'GPT-4': {
+                    'version': '1.0',
+                    'provider': 'OpenAI',
+                    'capabilities': ['text_generation', 'analysis']
+                }
+            }
         }
     }
     
+    # Initialize generator
     generator = UnifiedResearchGenerator(config)
+    
+    # Generate dataset
     conversations, metrics = await generator.generate_dataset()
     
+    # Print sample results
     print(f"\nGenerated {len(conversations)} conversations")
-    print("\nSample conversation:")
-    sample_conv = conversations[0]
-    for msg in sample_conv["messages"][:4]:
-        print(f"\n{msg['role'].upper()}: {msg['content'][:100]}")
-    print(f"Context: {sample_conv['context']['topic']} - {sample_conv['context']['phase']}")
+    if conversations:
+        print("\nSample conversation:")
+        conversation = conversations[0]
+        print(f"ID: {conversation['id']}")
+        print(f"AI Interactions: {len(conversation['ai_interactions'])}")
+        if 'c2pa_provenance' in conversation:
+            print(f"C2PA Status: {conversation['c2pa_provenance']['verification_status']}")
+
+
+# async def main():
+#     """Example usage"""
+#     config = {
+#         'size': 10,
+#         'min_length': 3,
+#         'max_length': 5,
+#         'domains': ['education', 'psychology'],
+#         'template_settings': {
+#             'use_dynamic_templates': True
+#         }
+#     }
+    
+#     generator = UnifiedResearchGeneratorA(config)
+#     conversations, metrics = await generator.generate_dataset()
+    
+#     print(f"\nGenerated {len(conversations)} conversations")
+#     print("\nSample conversation:")
+#     sample_conv = conversations[0]
+#     for msg in sample_conv["messages"][:4]:
+#         print(f"\n{msg['role'].upper()}: {msg['content'][:100]}")
+#     print(f"Context: {sample_conv['context']['topic']} - {sample_conv['context']['phase']}")
 
 if __name__ == "__main__":
     import asyncio

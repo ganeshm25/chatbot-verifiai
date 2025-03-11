@@ -12,6 +12,8 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 from collections import Counter
+from dataclasses import asdict
+from enum import Enum
 
 def load_config(config_path: Union[str, Path]) -> Dict:
     """
@@ -331,3 +333,22 @@ def format_chicago_citation(citation: str) -> str:
     """Format citation in Chicago style"""
     # Implementation for Chicago formatting
     pass
+
+
+def serialize_for_json(obj):
+    """Custom serializer that handles Enum types, dataclasses, and datetime objects"""
+    if isinstance(obj, Enum):
+        return obj.value
+    elif hasattr(obj, '__dataclass_fields__'):  # Check if it's a dataclass
+        return {k: serialize_for_json(v) for k, v in asdict(obj).items()}
+    elif isinstance(obj, datetime):
+        return obj.isoformat()
+    elif isinstance(obj, (list, tuple)):
+        return [serialize_for_json(x) for x in obj]
+    elif isinstance(obj, dict):
+        return {k: serialize_for_json(v) for k, v in obj.items()}
+    return obj
+
+class EnhancedJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        return serialize_for_json(obj)

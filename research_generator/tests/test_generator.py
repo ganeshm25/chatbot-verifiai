@@ -6,7 +6,7 @@ import pytest
 import torch
 import numpy as np
 from typing import Dict, List
-from research_generator.data_generation.generator import UnifiedResearchGenerator
+from research_generator.data_generation.generator import UnifiedResearchGeneratorA
 from research_generator.data_generation.edge_cases import EdgeCaseManager
 from research_generator.data_generation.patterns import PatternManager
 
@@ -25,7 +25,7 @@ def test_config():
 @pytest.fixture
 def generator(test_config):
     """Generator fixture"""
-    return UnifiedResearchGenerator(test_config)
+    return UnifiedResearchGeneratorA(test_config)
 
 class TestUnifiedResearchGenerator:
     """Test cases for UnifiedResearchGenerator"""
@@ -172,12 +172,12 @@ class TestUnifiedResearchGenerator:
     def test_invalid_configurations(self, invalid_config):
         """Test handling of invalid configurations"""
         with pytest.raises(ValueError):
-            UnifiedResearchGenerator(invalid_config)
+            UnifiedResearchGeneratorA(invalid_config)
     
     def test_reproducibility(self, test_config):
         """Test reproducibility with same random seed"""
-        generator1 = UnifiedResearchGenerator(test_config)
-        generator2 = UnifiedResearchGenerator(test_config)
+        generator1 = UnifiedResearchGeneratorA(test_config)
+        generator2 = UnifiedResearchGeneratorA(test_config)
         
         conv1, metrics1 = generator1.generate_dataset()
         conv2, metrics2 = generator2.generate_dataset()

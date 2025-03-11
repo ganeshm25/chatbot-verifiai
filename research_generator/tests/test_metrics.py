@@ -14,7 +14,7 @@ from research_generator.models.evaluation import (
     BiasMetrics,
     ResearchMetrics
 )
-from research_generator.data_generation.generator import UnifiedResearchGenerator
+from research_generator.data_generation.generator import UnifiedResearchGeneratorA
 from torch.utils.data import Dataset, DataLoader
 
 # Test Fixtures
@@ -50,7 +50,7 @@ def mock_dataset():
     class MockResearchDataset(Dataset):
         def __init__(self, size=100):
             self.size = size
-            self.generator = UnifiedResearchGenerator({
+            self.generator = UnifiedResearchGeneratorA({
                 'size': size,
                 'min_length': 3,
                 'max_length': 5

@@ -3,7 +3,7 @@ Basic usage examples for the Research Generator system
 """
 
 import torch
-from data_generation import UnifiedResearchGenerator
+from data_generation import UnifiedResearchGeneratorA
 from models import ResearchAnalysisModel, TrainingPipeline
 from models.evaluation import EnhancedModelEvaluator
 
@@ -18,7 +18,7 @@ def generate_basic_dataset():
         'domains': ['education', 'psychology', 'stem']
     }
     
-    generator = UnifiedResearchGenerator(config)
+    generator = UnifiedResearchGeneratorA(config)
     
     # Generate dataset
     conversations, metrics = generator.generate_dataset()
@@ -59,7 +59,7 @@ def train_basic_model():
     })
     
     # Generate training data
-    generator = UnifiedResearchGenerator({'size': 1000})
+    generator = UnifiedResearchGeneratorA({'size': 1000})
     conversations, metrics = generator.generate_dataset()
     
     # Train model
@@ -78,7 +78,7 @@ def evaluate_basic_model():
     evaluator = EnhancedModelEvaluator(model, device)
     
     # Generate test data
-    generator = UnifiedResearchGenerator({'size': 100})
+    generator = UnifiedResearchGeneratorA({'size': 100})
     test_conversations, test_metrics = generator.generate_dataset()
     
     # Evaluate model

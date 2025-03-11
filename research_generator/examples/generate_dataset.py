@@ -1,5 +1,7 @@
 import asyncio
-from data_generation import UnifiedResearchGenerator
+from data_generation import UnifiedResearchGeneratorA
+from examples.advanced_config import AdvancedResearchScenarios
+from pathlib import Path
 
 async def generate_dataset():
     # Configuration for 1000 conversations
@@ -11,7 +13,7 @@ async def generate_dataset():
     }
     
     # Initialize generator
-    generator = UnifiedResearchGenerator(config)
+    generator = UnifiedResearchGeneratorA(config)
     
     # Generate dataset using await
     conversations, metrics = await generator.generate_dataset()
@@ -27,5 +29,28 @@ async def generate_dataset():
     print(f"Generated {len(conversations)} conversations")
 
 # Run the async function
+# if __name__ == "__main__":
+#     asyncio.run(generate_dataset())
+
+
+
+async def main():
+    # Initialize the scenarios object with a Path object
+    base_path = Path("output_data")
+    scenarios = AdvancedResearchScenarios(base_path=base_path)
+    
+    # Generate advanced dataset (Scenario 1)
+    print("Generating advanced dataset...")
+    conversations, metrics = await scenarios.scenario_1_advanced_generation()
+    
+    print(f"Generated {len(conversations)} conversations")
+    print(f"First conversation has {len(conversations[0]['messages'])} messages")
+    
+    # Print sample conversation
+    sample_conv = conversations[0]
+    print("\nSample Conversation:")
+    for msg in sample_conv["messages"][:4]:  # Show first 4 messages
+        print(f"\n{msg['role'].upper()}: {msg['content'][:100]}...")
+
 if __name__ == "__main__":
-    asyncio.run(generate_dataset())
+    asyncio.run(main())

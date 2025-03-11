@@ -36,7 +36,7 @@ research_system/
 - Authenticity metrics
 - Source provenance tracking
 
-### Model Architecture
+### Model Architecture WIP
 - Multi-task learning
 - Real-time analysis
 - Bias detection

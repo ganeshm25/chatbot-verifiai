@@ -2,8 +2,27 @@
 Data generation module for research conversation generation
 Provides comprehensive template-based generation capabilities
 """
+from enum import Enum
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Dict, List, Optional, Union
+# Import models
+from .models import (
+    ConversationPhase,
+    ConversationStyle,
+    AIInteractionType,
+    ResearchContext,
+    AIInteraction,
+    ContentProvenance
+)
+
+# Import core components
+from .patterns import PatternManager
+from .edge_cases import EdgeCaseManager
+from .metrics import MetricsCalculator
 
 from .generator import (
+    UnifiedResearchGeneratorA,
     UnifiedResearchGenerator,
     ResearchContext
 )
@@ -18,7 +37,24 @@ from .edge_cases import (
     EdgeCase,
     EdgeCaseType
 )
-from .metrics import MetricsCalculator
+# Import new components
+from .ai_logger import AIInteractionLogger
+from .c2pa_manager import C2PAManager
+
+__all__ = [
+    'ConversationPhase',
+    'ConversationStyle',
+    'AIInteractionType',
+    'ResearchContext',
+    'AIInteraction',
+    'ContentProvenance',
+    'PatternManager',
+    'EdgeCaseManager',
+    'MetricsCalculator',
+    'AIInteractionLogger',
+    'C2PAManager',
+    'UnifiedResearchGenerator'
+]
 
 # Version information
 __version__ = "1.0.0"
@@ -83,6 +119,40 @@ PATTERN_CONFIG = {
     }
 }
 
+# Example usage:
+def create_research_context() -> ResearchContext:
+    return ResearchContext(
+        domain="education",
+        topic="Cognitive Load in Online Learning",
+        methodology="Mixed Methods Research",
+        theoretical_framework="Cognitive Load Theory",
+        complexity=0.8,
+        phase=ConversationPhase.LITERATURE_REVIEW,
+        style=ConversationStyle.ANALYTICAL,
+        research_questions=[
+            "How does cognitive load affect student performance?",
+            "What strategies reduce cognitive load?"
+        ],
+        citations=[{
+            "author": "Smith et al.",
+            "year": "2023",
+            "title": "Cognitive Load Analysis",
+            "doi": "10.1000/example.123"
+        }],
+        variables={
+            "dependent_var": "learning_performance",
+            "independent_var": "cognitive_load_level",
+            "effect_size": 0.75
+        },
+        ai_model={
+            "name": "GPT-4",
+            "version": "1.0",
+            "provider": "OpenAI"
+        },
+        ai_interaction_history=[],
+        content_provenance={}
+    )
+
 # def create_generator(config: dict = None) -> UnifiedResearchGenerator:
 #     """
 #     Create a preconfigured UnifiedResearchGenerator instance
@@ -108,7 +178,7 @@ PATTERN_CONFIG = {
     
 #     return UnifiedResearchGenerator(merged_config)
 
-def create_generator(config: dict = None) -> UnifiedResearchGenerator:
+def create_generator(config: dict = None) -> UnifiedResearchGeneratorA:
     """
     Create a preconfigured UnifiedResearchGenerator instance
     
@@ -140,7 +210,7 @@ def create_generator(config: dict = None) -> UnifiedResearchGenerator:
     else:
         merged_config = default_config
     
-    return UnifiedResearchGenerator(merged_config)
+    return UnifiedResearchGeneratorA(merged_config)
 
 def create_pattern_manager(config: dict = None) -> PatternManager:
     """

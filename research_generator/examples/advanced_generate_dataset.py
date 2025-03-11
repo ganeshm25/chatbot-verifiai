@@ -2,7 +2,7 @@ import asyncio
 import logging
 from pathlib import Path
 from typing import List, Dict, Any
-from data_generation import EDGE_CASE_CONFIG, PATTERN_CONFIG, RESEARCH_DOMAINS, UnifiedResearchGenerator
+from data_generation import EDGE_CASE_CONFIG, PATTERN_CONFIG, RESEARCH_DOMAINS, UnifiedResearchGeneratorA
 
 from data_generation import (
     create_generator, 

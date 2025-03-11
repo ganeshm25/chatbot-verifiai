@@ -1,0 +1,31 @@
+{
+  "average_ai_interactions": 11.8,
+  "verification_success_rate": 0.0,
+  "metrics_by_domain": {
+    "stem": {
+      "count": 6,
+      "avg_ai_interactions": 12.666666666666666,
+      "avg_quality": 0.0
+    },
+    "psychology": {
+      "count": 2,
+      "avg_ai_interactions": 12.5,
+      "avg_quality": 0.0
+    },
+    "education": {
+      "count": 2,
+      "avg_ai_interactions": 8.5,
+      "avg_quality": 0.0
+    }
+  },
+  "ai_model_usage": {
+    "GPT-4": {
+      "count": 118,
+      "domains": {
+        "stem": 76,
+        "psychology": 25,
+        "education": 17
+      }
+    }
+  }
+}
