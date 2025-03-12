@@ -53,7 +53,11 @@ __all__ = [
     'MetricsCalculator',
     'AIInteractionLogger',
     'C2PAManager',
-    'UnifiedResearchGenerator'
+    'UnifiedResearchGenerator',
+    'classify_content_authenticity',
+    'calculate_trust_score', 
+    'validate_dataset_diversity',
+    'get_verification_status'
 ]
 
 # Version information

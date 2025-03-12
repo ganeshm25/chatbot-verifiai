@@ -31,7 +31,7 @@ class C2PAManager:
     async def generate_provenance(
         self,
         conversation: Dict,
-        context: ResearchContext,
+        context: Dict,  # Change to accept dictionary
         ai_interactions: List[AIInteraction]
     ) -> ContentProvenance:
         """Generate content provenance record"""
@@ -42,21 +42,21 @@ class C2PAManager:
             # Create interaction summary
             interaction_summary = await self._generate_interaction_summary(ai_interactions)
             
-            # Create provenance record using context attributes directly, not get()
+            # Create provenance record
             provenance = ContentProvenance(
                 content_id=conversation["id"],
                 user_id=str(uuid.uuid4()),  # Should come from context in real implementation
                 publication_timestamp=datetime.now(),
                 interaction_summary=interaction_summary,
                 content_metadata={
-                    "title": f"Research on {context.topic}",
+                    "title": context.get('topic', 'Untitled Research'),
                     "content_type": "research_conversation",
                     "content_hash": content_hash,
-                    "domain": context.domain,
-                    "methodology": context.methodology,
-                    "theoretical_framework": context.theoretical_framework
+                    "domain": context.get('domain', 'unknown'),
+                    "methodology": context.get('methodology', 'unspecified'),
+                    "theoretical_framework": context.get('theoretical_framework', 'unspecified')
                 },
-                verification_status="verified"
+                verification_status="unverified"
             )
             
             # Store provenance

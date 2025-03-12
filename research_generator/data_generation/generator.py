@@ -25,7 +25,8 @@ from .models import (
     AIInteractionType,
     ContentProvenance,
     ConversationPhase,
-    ConversationStyle
+    ConversationStyle,
+    VerificationStatus
 )
 
 from .patterns import PatternManager
@@ -40,6 +41,14 @@ from .patterns import (
 )
 from .edge_cases import EdgeCaseManager, EdgeCaseType
 from .metrics import MetricsCalculator
+from research_generator.utils.dataset_diversity import (
+    classify_content_authenticity, 
+    calculate_trust_score, 
+    validate_dataset_diversity,
+    get_verification_status
+)
+
+from enum import Enum
 
 # @dataclass
 # class ResearchContext:
@@ -1019,6 +1028,22 @@ class UnifiedResearchGenerator:
             conversations = []
             metrics = []
             
+            # Track verification status distribution
+            verification_distribution = {
+                VerificationStatus.VERIFIED: 0,
+                VerificationStatus.PARTIALLY_VERIFIED: 0,
+                VerificationStatus.UNVERIFIED: 0,
+                VerificationStatus.DISPUTED: 0,
+                VerificationStatus.PENDING: 0
+            }
+            
+            # Track content authenticity distribution
+            authenticity_distribution = {
+                "human_generated": 0,
+                "ai_assisted": 0,
+                "ai_generated": 0
+            }
+            
             for i in range(self.config['size']):
                 # Generate enhanced context
                 context = await self._generate_research_context()
@@ -1026,57 +1051,89 @@ class UnifiedResearchGenerator:
                 # Generate conversation with AI interactions
                 conversation = await self._generate_conversation_with_ai(context)
                 
-                # Add C2PA provenance
-                if self.config['c2pa_settings']['provenance_tracking']:
-                    conversation = await self._add_c2pa_provenance(conversation, context)
+                # Determine verification status with controlled randomness
+                verification_probabilities = {
+                    VerificationStatus.VERIFIED: 0.3,
+                    VerificationStatus.PARTIALLY_VERIFIED: 0.4,
+                    VerificationStatus.UNVERIFIED: 0.2,
+                    VerificationStatus.DISPUTED: 0.05,
+                    VerificationStatus.PENDING: 0.05
+                }
                 
-                # Calculate comprehensive metrics
+                verification_status = random.choices(
+                    list(verification_probabilities.keys()), 
+                    weights=list(verification_probabilities.values())
+                )[0]
+                verification_distribution[verification_status] += 1
+                
+                # Determine content authenticity
+                ai_interactions = conversation.get("ai_interactions", [])
+                total_messages = len(conversation.get("messages", []))
+                
+                content_authenticity = classify_content_authenticity(
+                    len(ai_interactions), 
+                    total_messages, 
+                    context.complexity
+                )
+                authenticity_distribution[content_authenticity] += 1
+                
+                # Calculate verification details
+                ai_influence_ratio = len(ai_interactions) / max(total_messages, 1)
+                verification_details = {
+                    "ai_interaction_score": min(ai_influence_ratio, 1.0),
+                    "citation_quality": random.uniform(0.3, 1.0),
+                    "methodology_rigor": random.uniform(0.4, 1.0)
+                }
+                
+                # Calculate trust score
+                trust_score = calculate_trust_score(
+                    context, 
+                    verification_status.value, 
+                    ai_interactions
+                )
+                
+                # Add attributes to conversation
+                conversation["content_authenticity"] = content_authenticity
+                conversation["trust_score"] = trust_score
+                
+                # Add provenance with enriched verification
+                provenance = ContentProvenance(
+                    content_id=conversation["id"],
+                    user_id=str(uuid.uuid4()),
+                    publication_timestamp=datetime.now(),
+                    interaction_summary={},  # Populate from existing code
+                    content_metadata={},     # Populate from existing code
+                    verification_status=verification_status,
+                    verification_details=verification_details
+                )
+                
+                conversation["c2pa_provenance"] = asdict(provenance)
+                
+                # Calculate metrics
                 metric = await self._calculate_enhanced_metrics(conversation, context)
-                
-                # Add target variables for ML tasks
-                # Determine content_authenticity based on AI interaction count and influence
-                ai_interaction_count = len(conversation.get("ai_interactions", []))
-                ai_influence_ratio = min(ai_interaction_count / max(len(conversation.get("messages", [])) / 2, 1), 1.0)
-                
-                # Add authenticity classification target (binary)
-                # Higher AI influence = more likely to be classified as "ai_assisted"
-                if ai_influence_ratio > 0.4 or random.random() < 0.3:  # Introduce some randomness
-                    conversation["content_authenticity"] = "ai_assisted"
-                else:
-                    conversation["content_authenticity"] = "human_generated"
-                
-                # Add trust score regression target (0.0-1.0)
-                # Base on metrics if available, otherwise generate reasonable score
-                if metric and "base_metrics" in metric:
-                    # Use metrics if available
-                    base_quality = metric.get("base_metrics", {}).get("overall_quality", 0.0)
-                    citation_quality = metric.get("base_metrics", {}).get("citation_quality", 0.0)
-                    methodology = metric.get("base_metrics", {}).get("methodology_score", 0.0)
-                    # Calculate weighted trust score
-                    conversation["trust_score"] = round(
-                        (base_quality * 0.4 + citation_quality * 0.3 + methodology * 0.3), 2
-                    )
-                else:
-                    # Generate reasonable score if metrics not available
-                    base_score = random.uniform(0.5, 0.9)  # Most content somewhat trustworthy
-                    # Lower score slightly for highly AI-influenced content
-                    adjustment = -0.1 if conversation["content_authenticity"] == "ai_assisted" else 0.05
-                    conversation["trust_score"] = round(
-                        max(0.1, min(1.0, base_score + adjustment + random.uniform(-0.15, 0.15))), 2
-                    )
-                
-                # Ensure metrics include the target variables
-                if metric:
-                    if "trust_metrics" not in metric:
-                        metric["trust_metrics"] = {}
-                    metric["trust_metrics"]["overall_trust_score"] = conversation["trust_score"]
-                    metric["trust_metrics"]["content_authenticity"] = conversation["content_authenticity"]
                 
                 conversations.append(conversation)
                 metrics.append(metric)
                 
                 if (i + 1) % 10 == 0:
                     self.logger.info(f"Generated {i + 1}/{self.config['size']} conversations")
+            
+            # Validate and report dataset diversity
+            diversity_report = validate_dataset_diversity(conversations)
+            
+            # Log distribution insights
+            self.logger.info("\nVerification Status Distribution:")
+            for status, count in verification_distribution.items():
+                self.logger.info(f"{status.value}: {count} ({count/self.config['size']*100:.2f}%)")
+            
+            self.logger.info("\nContent Authenticity Distribution:")
+            for auth, count in authenticity_distribution.items():
+                self.logger.info(f"{auth}: {count} ({count/self.config['size']*100:.2f}%)")
+            
+            # Optional: Log diversity report details
+            self.logger.info("\nDataset Diversity Report:")
+            for key, value in diversity_report.items():
+                self.logger.info(f"{key}: {value}")
             
             return conversations, metrics
             
@@ -1184,6 +1241,9 @@ class UnifiedResearchGenerator:
     ) -> Dict:
         """Add C2PA provenance to conversation"""
         try:
+            # Ensure context is converted to dictionary if it's an object
+            context_dict = asdict(context) if hasattr(context, '__dict__') else context
+            
             # Convert AI interactions back to objects
             ai_interactions = [
                 AIInteraction(**interaction)
@@ -1193,7 +1253,7 @@ class UnifiedResearchGenerator:
             # Generate provenance
             provenance = await self.c2pa_manager.generate_provenance(
                 conversation,
-                context,
+                context_dict,  # Pass dictionary representation
                 ai_interactions
             )
             
@@ -1221,10 +1281,13 @@ class UnifiedResearchGenerator:
     ) -> Dict:
         """Calculate comprehensive metrics including AI and C2PA aspects"""
         try:
+            # Ensure context is a dictionary if it's a ResearchContext object
+            context_dict = asdict(context) if hasattr(context, '__dict__') else context
+            
             # Calculate base metrics
             base_metrics = await self.metrics_calculator.calculate_metrics(
                 conversation,
-                context
+                context_dict  # Use dictionary representation
             )
             
             # Get AI interaction summary

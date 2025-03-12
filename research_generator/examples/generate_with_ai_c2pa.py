@@ -105,6 +105,11 @@ def save_as_csv(conversations, metrics, output_dir):
     # 1. Save basic conversation data with target variables
     conversations_basic = []
     for conv in conversations:
+        # Extract verification status and details
+        c2pa_provenance = conv.get('c2pa_provenance', {})
+        verification_status = c2pa_provenance.get('verification_status', 'unverified')
+        verification_details = c2pa_provenance.get('verification_details', {})
+        
         conversations_basic.append({
             'conversation_id': conv.get('id', ''),
             'domain': conv.get('context', {}).get('domain', ''),
@@ -113,9 +118,18 @@ def save_as_csv(conversations, metrics, output_dir):
             'complexity': conv.get('context', {}).get('complexity', 0),
             'message_count': len(conv.get('messages', [])),
             'ai_interaction_count': len(conv.get('ai_interactions', [])),
-            'content_authenticity': conv.get('content_authenticity', ''),  # Target variable 1
-            'trust_score': conv.get('trust_score', 0.0),                   # Target variable 2
-            'verification_status': conv.get('c2pa_provenance', {}).get('verification_status', '')
+            
+            # Expanded verification and authenticity columns
+            'verification_status': verification_status,
+            'verification_ai_score': verification_details.get('ai_interaction_score', 0.0),
+            'verification_citation_quality': verification_details.get('citation_quality', 0.0),
+            'verification_methodology_rigor': verification_details.get('methodology_rigor', 0.0),
+            
+            'content_authenticity': conv.get('content_authenticity', ''),
+            'trust_score': conv.get('trust_score', 0.0),
+            
+            # Additional metadata
+            'ai_influence_ratio': len(conv.get('ai_interactions', [])) / max(len(conv.get('messages', [])), 1)
         })
     
     df_conversations = pd.DataFrame(conversations_basic)
@@ -129,6 +143,8 @@ def save_as_csv(conversations, metrics, output_dir):
         domain = conv.get('context', {}).get('domain', '')
         content_authenticity = conv.get('content_authenticity', '')
         trust_score = conv.get('trust_score', 0.0)
+        verification_status = conv.get('c2pa_provenance', {}).get('verification_status', 'unverified')
+        
         for msg in conv.get('messages', []):
             messages.append({
                 'conversation_id': conv_id,
@@ -138,8 +154,9 @@ def save_as_csv(conversations, metrics, output_dir):
                 'domain': domain,
                 'phase': msg.get('metadata', {}).get('phase', ''),
                 'content': msg.get('content', '')[:500],  # Truncate long content
-                'content_authenticity': content_authenticity,  # Add target variable 
-                'trust_score': trust_score                     # Add target variable
+                'content_authenticity': content_authenticity,
+                'trust_score': trust_score,
+                'verification_status': verification_status
             })
     
     df_messages = pd.DataFrame(messages)
@@ -153,6 +170,9 @@ def save_as_csv(conversations, metrics, output_dir):
         domain = conv.get('context', {}).get('domain', '')
         content_authenticity = conv.get('content_authenticity', '') 
         trust_score = conv.get('trust_score', 0.0)
+        verification_status = conv.get('c2pa_provenance', {}).get('verification_status', 'unverified')
+        verification_details = conv.get('c2pa_provenance', {}).get('verification_details', {})
+        
         for interaction in conv.get('ai_interactions', []):
             ai_interactions.append({
                 'conversation_id': conv_id,
@@ -164,8 +184,12 @@ def save_as_csv(conversations, metrics, output_dir):
                 'user_action_count': len(interaction.get('user_actions', [])),
                 'input_content': str(interaction.get('input', {}))[:200],
                 'output_content': str(interaction.get('output', {}))[:200],
-                'content_authenticity': content_authenticity,  # Add target variable
-                'trust_score': trust_score                     # Add target variable
+                'content_authenticity': content_authenticity,
+                'trust_score': trust_score,
+                'verification_status': verification_status,
+                'verification_ai_score': verification_details.get('ai_interaction_score', 0.0),
+                'verification_citation_quality': verification_details.get('citation_quality', 0.0),
+                'verification_methodology_rigor': verification_details.get('methodology_rigor', 0.0)
             })
     
     df_interactions = pd.DataFrame(ai_interactions)
@@ -177,16 +201,21 @@ def save_as_csv(conversations, metrics, output_dir):
     for conv in conversations:
         if "c2pa_provenance" in conv:
             prov = conv["c2pa_provenance"]
+            verification_details = prov.get('verification_details', {})
+            
             c2pa_data.append({
                 'conversation_id': conv.get('id', ''),
                 'content_id': prov.get('content_id', ''),
                 'user_id': prov.get('user_id', ''),
                 'publication_timestamp': prov.get('publication_timestamp', ''),
-                'verification_status': prov.get('verification_status', ''),
+                'verification_status': prov.get('verification_status', 'unverified'),
+                'verification_ai_score': verification_details.get('ai_interaction_score', 0.0),
+                'verification_citation_quality': verification_details.get('citation_quality', 0.0),
+                'verification_methodology_rigor': verification_details.get('methodology_rigor', 0.0),
                 'interaction_count': prov.get('interaction_summary', {}).get('total_interactions', 0),
                 'content_hash': prov.get('content_metadata', {}).get('content_hash', ''),
-                'content_authenticity': conv.get('content_authenticity', ''),  # Add target variable
-                'trust_score': conv.get('trust_score', 0.0)                   # Add target variable
+                'content_authenticity': conv.get('content_authenticity', ''),
+                'trust_score': conv.get('trust_score', 0.0)
             })
     
     if c2pa_data:
@@ -201,6 +230,8 @@ def save_as_csv(conversations, metrics, output_dir):
     for i, (conv, metric) in enumerate(zip(conversations, metrics)):
         conv_id = conv.get('id', '')
         domain = conv.get('context', {}).get('domain', '')
+        c2pa_provenance = conv.get('c2pa_provenance', {})
+        verification_details = c2pa_provenance.get('verification_details', {})
         
         # Extract and flatten key metrics
         base = metric.get('base_metrics', {})
@@ -210,26 +241,40 @@ def save_as_csv(conversations, metrics, output_dir):
         flattened_metrics.append({
             'conversation_id': conv_id,
             'domain': domain,
+            
+            # Base metrics
             'methodology_score': base.get('methodology_score', 0),
             'theoretical_score': base.get('theoretical_score', 0),
             'analytical_depth': base.get('analytical_depth', 0),
             'citation_quality': base.get('citation_quality', 0),
+            
+            # AI interaction metrics
             'interaction_quality': ai.get('interaction_quality', 0),
             'user_engagement': ai.get('user_engagement', 0),
+            
+            # C2PA metrics with expanded verification details
+            'verification_status': c2pa_provenance.get('verification_status', 'unverified'),
+            'verification_ai_score': verification_details.get('ai_interaction_score', 0.0),
+            'verification_citation_quality': verification_details.get('citation_quality', 0.0),
+            'verification_methodology_rigor': verification_details.get('methodology_rigor', 0.0),
             'provenance_completeness': c2pa.get('provenance_completeness', 0),
-            'verification_status': c2pa.get('verification_status', ''),
             'transparency_score': c2pa.get('transparency_score', 0),
-            'content_authenticity': conv.get('content_authenticity', ''),  # Target variable 1
-            'trust_score': conv.get('trust_score', 0.0)                    # Target variable 2
+            
+            # Target variables
+            'content_authenticity': conv.get('content_authenticity', ''),
+            'trust_score': conv.get('trust_score', 0.0)
         })
-    
     df_metrics = pd.DataFrame(flattened_metrics)
     df_metrics.to_csv(output_dir / 'metrics.csv', index=False)
     print(f"Saved {len(flattened_metrics)} metric records to {output_dir / 'metrics.csv'}")
-    
     # 6. Save target variables separately for clarity
     targets = []
     for conv in conversations:
+        # Retrieve C2PA provenance details
+        c2pa_provenance = conv.get('c2pa_provenance', {})
+        verification_status = c2pa_provenance.get('verification_status', 'unverified')
+        verification_details = c2pa_provenance.get('verification_details', {})
+        
         targets.append({
             'conversation_id': conv.get('id', ''),
             'content_authenticity': conv.get('content_authenticity', ''),
@@ -237,12 +282,17 @@ def save_as_csv(conversations, metrics, output_dir):
             'domain': conv.get('context', {}).get('domain', ''),
             'ai_interaction_count': len(conv.get('ai_interactions', [])),
             'message_count': len(conv.get('messages', [])),
-            'verification_status': conv.get('c2pa_provenance', {}).get('verification_status', '')
+            'verification_status': verification_status,
+            
+            # Additional verification details
+            'verification_ai_score': verification_details.get('ai_interaction_score', 0.0),
+            'verification_citation_quality': verification_details.get('citation_quality', 0.0),
+            'verification_methodology_rigor': verification_details.get('methodology_rigor', 0.0)
         })
-    
     df_targets = pd.DataFrame(targets)
     df_targets.to_csv(output_dir / 'target_variables.csv', index=False)
     print(f"Saved {len(targets)} target variable records to {output_dir / 'target_variables.csv'}")
+
 
 async def generate_dataset(config, output_dir):
     """Generate research dataset with AI and C2PA features"""
