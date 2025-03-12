@@ -17,6 +17,84 @@ from utils.helpers import load_config, save_dataset, serialize_for_json
 from research_generator.data_generation.generator import UnifiedResearchGenerator
 from research_generator.config.default_config import DEFAULT_CONFIG, get_domain_specific_config
 
+def save_c2pa_provenance_csv(conversations, output_dir):
+    """
+    Extract and save C2PA provenance data to a CSV file
+    
+    Args:
+        conversations (List[Dict]): List of generated conversations
+        output_dir (str): Directory to save the CSV file
+    """
+    import pandas as pd
+    import os
+    from datetime import datetime
+    
+    # Prepare C2PA provenance data
+    c2pa_data = []
+    
+    for conversation in conversations:
+        # Fallback to extracting provenance data from context or top-level conversation
+        context = conversation.get('context', {})
+        
+        # Create default record with fallback values
+        c2pa_record = {
+            "conversation_id": conversation.get("id", ""),
+            "content_id": context.get("content_id", conversation.get("id", "")),
+            "user_id": context.get("user_id", ""),
+            "publication_timestamp": (
+                context.get("publication_timestamp") or 
+                conversation.get("timestamp") or 
+                datetime.now().isoformat()
+            ),
+            "total_interactions": len(conversation.get("ai_interactions", [])),
+            "main_topics": ", ".join(context.get("main_topics", [str(context.get("topic", ""))])),
+            "ai_models_used": ", ".join([
+                interaction.get("ai_model", {}).get("name", "Unknown") 
+                for interaction in conversation.get("ai_interactions", [])
+            ]),
+            "interaction_duration": sum(
+                interaction.get("duration", 0) 
+                for interaction in conversation.get("ai_interactions", [])
+            ),
+            "content_title": context.get("topic", ""),
+            "content_type": "research_conversation",
+            "content_hash": context.get("content_hash", ""),
+            "verification_status": conversation.get("c2pa_provenance", {}).get("verification_status", "unverified"),
+            "content_authenticity": conversation.get("content_authenticity", ""),
+            "trust_score": conversation.get("trust_score", 0.0),
+            "domain": context.get("domain", ""),
+            "methodology": context.get("methodology", "")
+        }
+        
+        c2pa_data.append(c2pa_record)
+    
+    # Create DataFrame and save to CSV
+    if c2pa_data:
+        df_c2pa = pd.DataFrame(c2pa_data)
+        
+        # Ensure output directory exists
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Save CSV
+        csv_path = os.path.join(output_dir, "c2pa_provenance.csv")
+        df_c2pa.to_csv(csv_path, index=False)
+        print(f"Saved {len(c2pa_data)} C2PA provenance records to {csv_path}")
+    else:
+        print("No C2PA provenance data found to save.")
+
+# JSON serialization helper
+def json_serializable_object(obj):
+    """Convert non-serializable objects to JSON-compatible format"""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    elif hasattr(obj, 'value'):  # Handle Enum values
+        return obj.value
+    elif hasattr(obj, '__dict__'):
+        return obj.__dict__
+    return str(obj)
+
+
+
 def save_as_csv(conversations, metrics, output_dir):
     """Save dataset components as CSV files for easier analysis"""
     output_dir = Path(output_dir)
@@ -190,15 +268,18 @@ async def generate_dataset(config, output_dir):
             "metrics": metrics,
             "config": {k: v for k, v in config.items() if k != "template_paths"},
             "generated_at": datetime.now().isoformat()
-        }, f, indent=2, default=str)
+        }, f, indent=2, default=json_serializable_object)
     print(f"\nSaved complete dataset to {dataset_path}")
     
     # Save a sample conversation for easy viewing
     if conversations:
         sample_path = os.path.join(output_dir, "sample_conversation.json")
         with open(sample_path, "w") as f:
-            json.dump(conversations[0], f, indent=2, default=str)
+            json.dump(conversations[0], f, indent=2, default=json_serializable_object)
         print(f"Saved sample conversation to {sample_path}")
+    
+    # Save C2PA Provenance CSV
+    save_c2pa_provenance_csv(conversations, output_dir)
     
     # Save metrics summary
     metrics_path = os.path.join(output_dir, "metrics_summary.json")
