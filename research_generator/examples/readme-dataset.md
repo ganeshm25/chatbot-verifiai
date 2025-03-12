@@ -1,3 +1,9 @@
+Generate both JSON and CSV outputs by default:
+bashCopypython -m research_generator.examples.generate_with_ai_c2pa --size 20 --output ./output
+
+Generate only CSV files (better for students who primarily use tools like Excel or R):
+bashCopypython -m research_generator.examples.generate_with_ai_c2pa --size 20 --output ./output --csv-only
+
 (main) $ python generate_dataset.py 
 Generating advanced dataset...
 No valid messages found
