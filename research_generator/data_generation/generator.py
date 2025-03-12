@@ -1012,7 +1012,7 @@ class UnifiedResearchGenerator:
             ]
             for domain in self.domains
         }
-    
+
     async def generate_dataset(self) -> Tuple[List[Dict], List[Dict]]:
         """Generate enhanced dataset with AI interactions and C2PA provenance"""
         try:
@@ -1032,6 +1032,45 @@ class UnifiedResearchGenerator:
                 
                 # Calculate comprehensive metrics
                 metric = await self._calculate_enhanced_metrics(conversation, context)
+                
+                # Add target variables for ML tasks
+                # Determine content_authenticity based on AI interaction count and influence
+                ai_interaction_count = len(conversation.get("ai_interactions", []))
+                ai_influence_ratio = min(ai_interaction_count / max(len(conversation.get("messages", [])) / 2, 1), 1.0)
+                
+                # Add authenticity classification target (binary)
+                # Higher AI influence = more likely to be classified as "ai_assisted"
+                if ai_influence_ratio > 0.4 or random.random() < 0.3:  # Introduce some randomness
+                    conversation["content_authenticity"] = "ai_assisted"
+                else:
+                    conversation["content_authenticity"] = "human_generated"
+                
+                # Add trust score regression target (0.0-1.0)
+                # Base on metrics if available, otherwise generate reasonable score
+                if metric and "base_metrics" in metric:
+                    # Use metrics if available
+                    base_quality = metric.get("base_metrics", {}).get("overall_quality", 0.0)
+                    citation_quality = metric.get("base_metrics", {}).get("citation_quality", 0.0)
+                    methodology = metric.get("base_metrics", {}).get("methodology_score", 0.0)
+                    # Calculate weighted trust score
+                    conversation["trust_score"] = round(
+                        (base_quality * 0.4 + citation_quality * 0.3 + methodology * 0.3), 2
+                    )
+                else:
+                    # Generate reasonable score if metrics not available
+                    base_score = random.uniform(0.5, 0.9)  # Most content somewhat trustworthy
+                    # Lower score slightly for highly AI-influenced content
+                    adjustment = -0.1 if conversation["content_authenticity"] == "ai_assisted" else 0.05
+                    conversation["trust_score"] = round(
+                        max(0.1, min(1.0, base_score + adjustment + random.uniform(-0.15, 0.15))), 2
+                    )
+                
+                # Ensure metrics include the target variables
+                if metric:
+                    if "trust_metrics" not in metric:
+                        metric["trust_metrics"] = {}
+                    metric["trust_metrics"]["overall_trust_score"] = conversation["trust_score"]
+                    metric["trust_metrics"]["content_authenticity"] = conversation["content_authenticity"]
                 
                 conversations.append(conversation)
                 metrics.append(metric)
@@ -1253,6 +1292,7 @@ class UnifiedResearchGenerator:
 
     # Add these helper methods to the UnifiedResearchGenerator class in generator.py
 
+    # Methods for selecting domain, methodology, etc.
     def _select_random_domain(self):
         """Select a random domain from configured domains"""
         return random.choice(self.config['domains'])

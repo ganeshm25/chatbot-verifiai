@@ -10,15 +10,13 @@ import json
 import os
 import argparse
 from datetime import datetime
-from utils.helpers import load_config, save_dataset, serialize_for_json
+from pathlib import Path
+import pandas as pd
 
+from utils.helpers import load_config, save_dataset, serialize_for_json
 from research_generator.data_generation.generator import UnifiedResearchGenerator
 from research_generator.config.default_config import DEFAULT_CONFIG, get_domain_specific_config
-# Add to imports at the top of generate_with_ai_c2pa.py
-import pandas as pd
-from pathlib import Path
 
-# Add this function to generate CSV files
 def save_as_csv(conversations, metrics, output_dir):
     """Save dataset components as CSV files for easier analysis"""
     output_dir = Path(output_dir)
@@ -26,7 +24,7 @@ def save_as_csv(conversations, metrics, output_dir):
     # Ensure output directory exists
     output_dir.mkdir(exist_ok=True, parents=True)
     
-    # 1. Save basic conversation data
+    # 1. Save basic conversation data with target variables
     conversations_basic = []
     for conv in conversations:
         conversations_basic.append({
@@ -37,6 +35,8 @@ def save_as_csv(conversations, metrics, output_dir):
             'complexity': conv.get('context', {}).get('complexity', 0),
             'message_count': len(conv.get('messages', [])),
             'ai_interaction_count': len(conv.get('ai_interactions', [])),
+            'content_authenticity': conv.get('content_authenticity', ''),  # Target variable 1
+            'trust_score': conv.get('trust_score', 0.0),                   # Target variable 2
             'verification_status': conv.get('c2pa_provenance', {}).get('verification_status', '')
         })
     
@@ -49,6 +49,8 @@ def save_as_csv(conversations, metrics, output_dir):
     for conv in conversations:
         conv_id = conv.get('id', '')
         domain = conv.get('context', {}).get('domain', '')
+        content_authenticity = conv.get('content_authenticity', '')
+        trust_score = conv.get('trust_score', 0.0)
         for msg in conv.get('messages', []):
             messages.append({
                 'conversation_id': conv_id,
@@ -57,7 +59,9 @@ def save_as_csv(conversations, metrics, output_dir):
                 'role': msg.get('role', ''),
                 'domain': domain,
                 'phase': msg.get('metadata', {}).get('phase', ''),
-                'content': msg.get('content', '')[:500]  # Truncate long content
+                'content': msg.get('content', '')[:500],  # Truncate long content
+                'content_authenticity': content_authenticity,  # Add target variable 
+                'trust_score': trust_score                     # Add target variable
             })
     
     df_messages = pd.DataFrame(messages)
@@ -69,6 +73,8 @@ def save_as_csv(conversations, metrics, output_dir):
     for conv in conversations:
         conv_id = conv.get('id', '')
         domain = conv.get('context', {}).get('domain', '')
+        content_authenticity = conv.get('content_authenticity', '') 
+        trust_score = conv.get('trust_score', 0.0)
         for interaction in conv.get('ai_interactions', []):
             ai_interactions.append({
                 'conversation_id': conv_id,
@@ -78,15 +84,41 @@ def save_as_csv(conversations, metrics, output_dir):
                 'interaction_type': interaction.get('interaction_type', ''),
                 'ai_model': interaction.get('ai_model', {}).get('name', ''),
                 'user_action_count': len(interaction.get('user_actions', [])),
-                'input_content': str(interaction.get('input', {}))[:200],  # Truncate and convert to string
-                'output_content': str(interaction.get('output', {}))[:200]  # Truncate and convert to string
+                'input_content': str(interaction.get('input', {}))[:200],
+                'output_content': str(interaction.get('output', {}))[:200],
+                'content_authenticity': content_authenticity,  # Add target variable
+                'trust_score': trust_score                     # Add target variable
             })
     
     df_interactions = pd.DataFrame(ai_interactions)
     df_interactions.to_csv(output_dir / 'ai_interactions.csv', index=False)
     print(f"Saved {len(ai_interactions)} AI interaction records to {output_dir / 'ai_interactions.csv'}")
     
-    # 4. Save metrics data
+    # 4. Save C2PA provenance data
+    c2pa_data = []
+    for conv in conversations:
+        if "c2pa_provenance" in conv:
+            prov = conv["c2pa_provenance"]
+            c2pa_data.append({
+                'conversation_id': conv.get('id', ''),
+                'content_id': prov.get('content_id', ''),
+                'user_id': prov.get('user_id', ''),
+                'publication_timestamp': prov.get('publication_timestamp', ''),
+                'verification_status': prov.get('verification_status', ''),
+                'interaction_count': prov.get('interaction_summary', {}).get('total_interactions', 0),
+                'content_hash': prov.get('content_metadata', {}).get('content_hash', ''),
+                'content_authenticity': conv.get('content_authenticity', ''),  # Add target variable
+                'trust_score': conv.get('trust_score', 0.0)                   # Add target variable
+            })
+    
+    if c2pa_data:
+        df_c2pa = pd.DataFrame(c2pa_data)
+        df_c2pa.to_csv(output_dir / 'c2pa_provenance.csv', index=False)
+        print(f"Saved {len(c2pa_data)} C2PA provenance records to {output_dir / 'c2pa_provenance.csv'}")
+    else:
+        print("No C2PA provenance data available to save")
+    
+    # 5. Save metrics data with target variables
     flattened_metrics = []
     for i, (conv, metric) in enumerate(zip(conversations, metrics)):
         conv_id = conv.get('id', '')
@@ -108,12 +140,31 @@ def save_as_csv(conversations, metrics, output_dir):
             'user_engagement': ai.get('user_engagement', 0),
             'provenance_completeness': c2pa.get('provenance_completeness', 0),
             'verification_status': c2pa.get('verification_status', ''),
-            'transparency_score': c2pa.get('transparency_score', 0)
+            'transparency_score': c2pa.get('transparency_score', 0),
+            'content_authenticity': conv.get('content_authenticity', ''),  # Target variable 1
+            'trust_score': conv.get('trust_score', 0.0)                    # Target variable 2
         })
     
     df_metrics = pd.DataFrame(flattened_metrics)
     df_metrics.to_csv(output_dir / 'metrics.csv', index=False)
     print(f"Saved {len(flattened_metrics)} metric records to {output_dir / 'metrics.csv'}")
+    
+    # 6. Save target variables separately for clarity
+    targets = []
+    for conv in conversations:
+        targets.append({
+            'conversation_id': conv.get('id', ''),
+            'content_authenticity': conv.get('content_authenticity', ''),
+            'trust_score': conv.get('trust_score', 0.0),
+            'domain': conv.get('context', {}).get('domain', ''),
+            'ai_interaction_count': len(conv.get('ai_interactions', [])),
+            'message_count': len(conv.get('messages', [])),
+            'verification_status': conv.get('c2pa_provenance', {}).get('verification_status', '')
+        })
+    
+    df_targets = pd.DataFrame(targets)
+    df_targets.to_csv(output_dir / 'target_variables.csv', index=False)
+    print(f"Saved {len(targets)} target variable records to {output_dir / 'target_variables.csv'}")
 
 async def generate_dataset(config, output_dir):
     """Generate research dataset with AI and C2PA features"""
@@ -164,53 +215,6 @@ async def generate_dataset(config, output_dir):
     save_as_csv(conversations, metrics, output_dir)
     
     return conversations, metrics
-
-# async def generate_dataset(config, output_dir):
-#     """Generate research dataset with AI and C2PA features"""
-#     print(f"\nInitializing generator with configuration...")
-#     generator = UnifiedResearchGenerator(config)
-    
-#     print(f"\nGenerating dataset of {config['size']} conversations...")
-#     start_time = datetime.now()
-#     conversations, metrics = await generator.generate_dataset()
-#     end_time = datetime.now()
-    
-#     print(f"\nGeneration completed in {(end_time - start_time).total_seconds():.2f} seconds")
-#     print(f"Generated {len(conversations)} conversations with AI interactions and C2PA provenance")
-    
-#     # Create output directory if it doesn't exist
-#     os.makedirs(output_dir, exist_ok=True)
-    
-#     # Save complete dataset
-#     dataset_path = os.path.join(output_dir, "research_dataset_complete.json")
-#     with open(dataset_path, "w") as f:
-#         json.dump({
-#             "conversations": serialize_for_json(conversations),
-#             "metrics": serialize_for_json(metrics),
-#             "config": serialize_for_json({k: v for k, v in config.items() if k != "template_paths"}),
-#             "generated_at": datetime.now().isoformat()
-#         }, f, indent=2)
-#     print(f"\nSaved complete dataset to {dataset_path}")
-    
-#     # Save a sample conversation for easy viewing
-#     if conversations:
-#         sample_path = os.path.join(output_dir, "sample_conversation.json")
-#         with open(sample_path, "w") as f:
-#             json.dump(conversations[0], f, indent=2, default=str)
-#         print(f"Saved sample conversation to {sample_path}")
-    
-#     # Save metrics summary
-#     metrics_path = os.path.join(output_dir, "metrics_summary.json")
-#     with open(metrics_path, "w") as f:
-#         json.dump({
-#             "average_ai_interactions": sum(len(c.get("ai_interactions", [])) for c in conversations) / len(conversations),
-#             "verification_success_rate": sum(1 for c in conversations if c.get("c2pa_provenance", {}).get("verification_status") == "verified") / len(conversations),
-#             "metrics_by_domain": _calculate_metrics_by_domain(conversations, metrics),
-#             "ai_model_usage": _calculate_ai_model_usage(conversations)
-#         }, f, indent=2)
-#     print(f"Saved metrics summary to {metrics_path}")
-    
-#     return conversations, metrics
 
 def _calculate_metrics_by_domain(conversations, metrics):
     """Calculate metrics aggregated by domain"""
@@ -273,6 +277,8 @@ async def main():
     parser.add_argument("--output", type=str, default="./output", help="Output directory")
     parser.add_argument("--ai-model", type=str, help="Specific AI model to use")
     parser.add_argument("--csv-only", action="store_true", help="Generate only CSV files, not JSON")
+    parser.add_argument("--generate-test", action="store_true", help="Generate test dataset alongside training data")
+    parser.add_argument("--test-ratio", type=float, default=0.2, help="Ratio of test data size to training data size")
     args = parser.parse_args()
     
     # Start with default configuration
@@ -291,44 +297,20 @@ async def main():
         config["ai_settings"]["model_selection_strategy"] = "specified"
         config["ai_settings"]["default_model"] = args.ai_model
     
-    # Generate dataset
-    conversations, metrics = await generate_dataset(config, args.output)
+    # Generate training dataset
+    train_output = args.output
+    print(f"\nGenerating training dataset of {config['size']} conversations...")
+    train_conversations, train_metrics = await generate_dataset(config, train_output)
     
-    # If CSV-only flag is set, remove JSON files
-    if args.csv_only:
-        for json_file in ["research_dataset_complete.json", "sample_conversation.json", "metrics_summary.json"]:
-            json_path = os.path.join(args.output, json_file)
-            if os.path.exists(json_path):
-                os.remove(json_path)
-                print(f"Removed JSON file: {json_path}")
-#before CSV                
-# async def main():
-#     """Main entry point"""
-#     parser = argparse.ArgumentParser(description="Generate research dataset with AI and C2PA features")
-#     parser.add_argument("--size", type=int, default=10, help="Number of conversations to generate")
-#     parser.add_argument("--domain", type=str, choices=["education", "psychology", "stem"], help="Focus on specific domain")
-#     parser.add_argument("--output", type=str, default="./output", help="Output directory")
-#     parser.add_argument("--ai-model", type=str, help="Specific AI model to use")
-#     args = parser.parse_args()
-    
-#     # Start with default configuration
-#     config = DEFAULT_CONFIG.copy()
-    
-#     # Apply command line overrides
-#     config["size"] = args.size
-    
-#     # Apply domain-specific settings if requested
-#     if args.domain:
-#         config["domains"] = [args.domain]
-#         config = get_domain_specific_config(config, args.domain)
-    
-#     # Apply AI model override if specified
-#     if args.ai_model and args.ai_model in config["ai_settings"]["models"]:
-#         config["ai_settings"]["model_selection_strategy"] = "specified"
-#         config["ai_settings"]["default_model"] = args.ai_model
-    
-#     # Generate dataset
-#     await generate_dataset(config, args.output)
+    # Generate test dataset if requested
+    if args.generate_test:
+        test_output = os.path.join(args.output, "test_data")
+        test_config = config.copy()
+        test_config["size"] = max(1, int(config["size"] * args.test_ratio))  # At least 1 test conversation
+        
+        print(f"\nGenerating test dataset of {test_config['size']} conversations...")
+        await generate_dataset(test_config, test_output)
+        print(f"\nGenerated test dataset in {test_output}")
 
 if __name__ == "__main__":
     asyncio.run(main())
