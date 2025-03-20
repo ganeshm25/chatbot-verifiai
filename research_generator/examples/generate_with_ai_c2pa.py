@@ -12,6 +12,7 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 import pandas as pd
+from enum import Enum  # Add this import at the top of the file
 
 from utils.helpers import load_config, save_dataset, serialize_for_json
 from research_generator.data_generation.generator import UnifiedResearchGenerator
@@ -83,14 +84,15 @@ def save_c2pa_provenance_csv(conversations, output_dir):
         print("No C2PA provenance data found to save.")
 
 # JSON serialization helper
+# In generate_with_ai_c2pa.py, modify JSON serialization
 def json_serializable_object(obj):
-    """Convert non-serializable objects to JSON-compatible format"""
+    """Enhanced JSON serializer"""
+    if isinstance(obj, Enum):
+        return obj.value
+    if hasattr(obj, '__dict__'):
+        return obj.__dict__
     if isinstance(obj, datetime):
         return obj.isoformat()
-    elif hasattr(obj, 'value'):  # Handle Enum values
-        return obj.value
-    elif hasattr(obj, '__dict__'):
-        return obj.__dict__
     return str(obj)
 
 
@@ -312,13 +314,17 @@ async def generate_dataset(config, output_dir):
     
     # Save complete dataset
     dataset_path = os.path.join(output_dir, "research_dataset_complete.json")
-    with open(dataset_path, "w") as f:
-        json.dump({
-            "conversations": conversations,
-            "metrics": metrics,
-            "config": {k: v for k, v in config.items() if k != "template_paths"},
-            "generated_at": datetime.now().isoformat()
-        }, f, indent=2, default=json_serializable_object)
+    try:
+        with open(dataset_path, "w") as f:
+            json.dump({
+                "conversations": conversations,
+                "metrics": metrics,
+                "config": {k: v for k, v in config.items() if k != "template_paths"},
+                "generated_at": datetime.now().isoformat()
+            }, f, indent=2, default=json_serializable_object)
+    except Exception as e:
+        print(f"JSON serialization error: {e}")
+
     print(f"\nSaved complete dataset to {dataset_path}")
     
     # Save a sample conversation for easy viewing

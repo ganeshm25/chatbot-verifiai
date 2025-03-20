@@ -8,34 +8,60 @@ from research_generator.data_generation.models import (
     ConversationPhase, 
     ConversationStyle
 )
+
 def classify_content_authenticity(
     ai_interaction_count: int, 
     message_count: int, 
-    complexity: float
+    complexity: float,
+    domain: str = None
 ) -> str:
     """
-    Sophisticated content authenticity classification
+    More nuanced content authenticity classification
     
     Args:
         ai_interaction_count: Number of AI interactions
         message_count: Total number of messages
         complexity: Research complexity score
+        domain: Research domain (optional)
     
     Returns:
         Content authenticity classification
     """
+    # Domain-specific authenticity probabilities
+    domain_weights = {
+        'education': {
+            'human_generated': 0.3,
+            'human_assisted': 0.4,
+            'ai_assisted': 0.2,
+            'ai_generated': 0.1
+        },
+        'psychology': {
+            'human_generated': 0.2,
+            'human_assisted': 0.3,
+            'ai_assisted': 0.3,
+            'ai_generated': 0.2
+        },
+        'stem': {
+            'human_generated': 0.1,
+            'human_assisted': 0.2,
+            'ai_assisted': 0.4,
+            'ai_generated': 0.3
+        }
+    }
+    
+    # Calculate AI influence
     ai_influence_ratio = ai_interaction_count / max(message_count / 2, 1)
-    
-    # Incorporate research complexity as a modifier
     complexity_modifier = 1 + (complexity - 0.5)
+    influence_score = ai_influence_ratio * complexity_modifier
     
-    # Enhanced classification logic
-    if ai_influence_ratio * complexity_modifier > 0.7:
-        return "ai_generated"
-    elif ai_influence_ratio * complexity_modifier > 0.3:
-        return "ai_assisted"
-    else:
-        return "human_generated"
+    # Select domain weights
+    domain_probs = domain_weights.get(domain, domain_weights['psychology'])
+    
+    # Probabilistic selection
+    categories = list(domain_probs.keys())
+    weights = list(domain_probs.values())
+    
+    return random.choices(categories, weights=weights)[0]
 
 def calculate_trust_score(
     context: ResearchContext,

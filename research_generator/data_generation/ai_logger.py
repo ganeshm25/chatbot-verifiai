@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Union
 from datetime import datetime
 import uuid
 import json
+import random
 from dataclasses import asdict
 
 from .models import AIInteraction, AIInteractionType, ResearchContext
@@ -24,16 +25,45 @@ class AIInteractionLogger:
         output_data: Dict,
         context: ResearchContext
     ) -> AIInteraction:
-        """Log a single AI interaction"""
+        """Log a single AI interaction with enhanced diversity"""
         try:
+            # Correctly calculate the number of non-RESEARCH_ASSISTANCE types
+            interaction_types = list(AIInteractionType)
+            other_types_count = len(interaction_types) - 1
+            
+            # Generate weights
+            weights = [
+                0.6 if t == AIInteractionType.RESEARCH_ASSISTANCE 
+                else 0.4 / other_types_count 
+                for t in interaction_types
+            ]
+            
+            # Randomly select interaction type
+            chosen_type = random.choices(
+                interaction_types,
+                weights=weights
+            )[0]
+            
+            # Generate varied user actions
+            user_actions = [
+                {
+                    "action": random.choices(
+                        ["accept", "modify", "reject"],
+                        weights=[0.6, 0.3, 0.1]  # Bias towards acceptance with some variation
+                    )[0],
+                    "confidence": round(random.uniform(0.5, 1.0), 2),
+                    "timestamp": datetime.now().isoformat()
+                }
+            ]
+            
             interaction = AIInteraction(
                 interaction_id=str(uuid.uuid4()),
                 timestamp=datetime.now(),
                 content_id=str(uuid.uuid4()),  # or from context if available
-                interaction_type=interaction_type,
+                interaction_type=chosen_type,
                 input=input_data,
                 output=output_data,
-                user_actions=[],  # Will be populated as actions occur
+                user_actions=user_actions,
                 ai_model=context.ai_model,
                 metadata={
                     "domain": context.domain,

@@ -1028,6 +1028,21 @@ class UnifiedResearchGenerator:
             conversations = []
             metrics = []
             
+            # Track diversity metrics
+            authenticity_distribution = {
+                "human_generated": 0,
+                "human_assisted": 0,
+                "ai_assisted": 0,
+                "ai_generated": 0
+            }
+            
+            # Domain distribution tracking
+            domain_distribution = {
+                "education": 0,
+                "psychology": 0,
+                "stem": 0
+            }
+
             # Track verification status distribution
             verification_distribution = {
                 VerificationStatus.VERIFIED: 0,
@@ -1037,9 +1052,10 @@ class UnifiedResearchGenerator:
                 VerificationStatus.PENDING: 0
             }
             
-            # Track content authenticity distribution
+            # Updated authenticity distribution to include new category
             authenticity_distribution = {
                 "human_generated": 0,
+                "human_assisted": 0,  # Added this line
                 "ai_assisted": 0,
                 "ai_generated": 0
             }
@@ -1070,12 +1086,17 @@ class UnifiedResearchGenerator:
                 ai_interactions = conversation.get("ai_interactions", [])
                 total_messages = len(conversation.get("messages", []))
                 
+                # Classify content authenticity with domain context
                 content_authenticity = classify_content_authenticity(
-                    len(ai_interactions), 
-                    total_messages, 
-                    context.complexity
+                    len(conversation.get('ai_interactions', [])),
+                    len(conversation.get('messages', [])),
+                    context.complexity,
+                    context.domain
                 )
+                conversation['content_authenticity'] = content_authenticity
+                # Update distribution tracking
                 authenticity_distribution[content_authenticity] += 1
+                domain_distribution[context.domain] += 1
                 
                 # Calculate verification details
                 ai_influence_ratio = len(ai_interactions) / max(total_messages, 1)
@@ -1111,6 +1132,7 @@ class UnifiedResearchGenerator:
                 
                 # Calculate metrics
                 metric = await self._calculate_enhanced_metrics(conversation, context)
+
                 
                 conversations.append(conversation)
                 metrics.append(metric)
@@ -1126,9 +1148,14 @@ class UnifiedResearchGenerator:
             for status, count in verification_distribution.items():
                 self.logger.info(f"{status.value}: {count} ({count/self.config['size']*100:.2f}%)")
             
+            # Log diversity insights
             self.logger.info("\nContent Authenticity Distribution:")
-            for auth, count in authenticity_distribution.items():
-                self.logger.info(f"{auth}: {count} ({count/self.config['size']*100:.2f}%)")
+            for category, count in authenticity_distribution.items():
+                self.logger.info(f"{category}: {count} ({count/self.config['size']*100:.2f}%)")
+            
+            self.logger.info("\nDomain Distribution:")
+            for domain, count in domain_distribution.items():
+                self.logger.info(f"{domain}: {count} ({count/self.config['size']*100:.2f}%)")
             
             # Optional: Log diversity report details
             self.logger.info("\nDataset Diversity Report:")
@@ -1285,21 +1312,47 @@ class UnifiedResearchGenerator:
             context_dict = asdict(context) if hasattr(context, '__dict__') else context
             
             # Calculate base metrics
-            base_metrics = await self.metrics_calculator.calculate_metrics(
-                conversation,
-                context_dict  # Use dictionary representation
-            )
+            try:
+                # Check if calculate_metrics is a coroutine
+                if asyncio.iscoroutinefunction(self.metrics_calculator.calculate_metrics):
+                    base_metrics = await self.metrics_calculator.calculate_metrics(
+                        conversation, 
+                        context_dict
+                    )
+                else:
+                    base_metrics = self.metrics_calculator.calculate_metrics(
+                        conversation, 
+                        context_dict
+                    )
+            except Exception as metric_error:
+                print(f"Metrics calculation error: {metric_error}")
+                base_metrics = {}
+                    
             
             # Get AI interaction summary
-            ai_metrics = await self.ai_logger.generate_interaction_summary(
-                conversation["id"]
-            )
+            try:
+                # Check if generate_interaction_summary is a coroutine
+                if asyncio.iscoroutinefunction(self.ai_logger.generate_interaction_summary):
+                    ai_metrics = await self.ai_logger.generate_interaction_summary(
+                        conversation["id"]
+                    )
+                else:
+                    ai_metrics = self.ai_logger.generate_interaction_summary(
+                        conversation["id"]
+                    )
+            except Exception as ai_metric_error:
+                print(f"AI metrics calculation error: {ai_metric_error}")
+                ai_metrics = {}
             
             # Get C2PA verification if available
-            c2pa_metrics = await self._calculate_c2pa_metrics(conversation)
+            try:
+                c2pa_metrics = await self._calculate_c2pa_metrics(conversation)
+            except Exception as c2pa_error:
+                print(f"C2PA metrics calculation error: {c2pa_error}")
+                c2pa_metrics = {}
             
             return {
-                **base_metrics,
+                "base_metrics": base_metrics,
                 "ai_interaction_metrics": ai_metrics,
                 "c2pa_metrics": c2pa_metrics
             }
@@ -1360,11 +1413,22 @@ class UnifiedResearchGenerator:
         """Select a random domain from configured domains"""
         return random.choice(self.config['domains'])
 
-    def _generate_topic(self, domain):
-        """Generate a topic for the given domain"""
-        domain_settings = self.config.get('domain_settings', {}).get(domain, {})
-        topics = domain_settings.get('topics', [f"Research topic in {domain}"])
-        return random.choice(topics)
+    def _generate_topic(self, domain: str) -> str:
+        """
+        Generate a topic for a specific domain using predefined topics
+        
+        Args:
+            domain: Research domain
+        
+        Returns:
+            A randomly selected research topic from the domain
+        """
+        # Use topics from self.domains if the domain exists
+        if domain in self.domains:
+            return random.choice(self.domains[domain]['topics'])
+        
+        # Fallback if domain is not found
+        return f"Research Topic in {domain}"
 
     def _select_methodology(self, domain):
         """Select appropriate methodology for the domain"""
@@ -1398,29 +1462,73 @@ class UnifiedResearchGenerator:
         """Select conversation style"""
         return random.choice(list(ConversationStyle))
 
-    async def _generate_research_questions(self, domain):
-        """Generate research questions for the domain"""
-        templates = {
+    async def _generate_research_questions(
+        self, 
+        domain: Optional[str] = None, 
+        topic: Optional[str] = None
+    ) -> List[str]:
+        """
+        Generate diverse research questions with domain and topic-specific templates
+        
+        Args:
+            domain: Research domain (optional)
+            topic: Specific research topic (optional)
+        
+        Returns:
+            List of research questions
+        """
+        # Domain-specific templates
+        domain_templates = {
             'education': [
                 "How does {topic} impact student learning outcomes?",
                 "What factors influence {topic} in educational settings?",
-                "How can {topic} be effectively implemented in classrooms?"
+                "How can {topic} be effectively implemented in classrooms?",
+                "What pedagogical strategies enhance {topic}?",
+                "How does {topic} affect student engagement and motivation?"
             ],
             'psychology': [
                 "What is the relationship between {topic} and behavior?",
                 "How does {topic} affect cognitive development?",
-                "What interventions are effective for {topic}?"
+                "What interventions are effective for {topic}?",
+                "How do individual differences mediate {topic}?",
+                "What psychological mechanisms underlie {topic}?"
             ],
             'stem': [
                 "How can {topic} be optimized for better performance?",
                 "What are the key variables affecting {topic}?",
-                "How does {topic} compare to existing methodologies?"
+                "How does {topic} compare to existing methodologies?",
+                "What technological innovations can improve {topic}?",
+                "What are the computational challenges in {topic}?"
+            ],
+            # Fallback templates for any domain
+            'default': [
+                "How does {topic} impact research outcomes?",
+                "What are the key factors influencing {topic}?",
+                "How can {topic} be effectively implemented?",
+                "What role does technology play in {topic}?",
+                "How do different contexts affect {topic}?"
             ]
         }
+
+        # Determine the domain and topic
+        if domain is None:
+            domain = random.choice(list(self.domains.keys()))
         
-        domain_templates = templates.get(domain, ["Research question about {topic}"])
-        topic = self._generate_topic(domain)
-        questions = [template.format(topic=topic) for template in random.sample(domain_templates, min(2, len(domain_templates)))]
+        if topic is None:
+            topic = self._generate_topic(domain)
+
+        # Select templates
+        templates = domain_templates.get(domain, domain_templates['default'])
+        
+        # Determine number of questions
+        num_questions = random.randint(2, min(4, len(templates)))
+        
+        # Generate questions
+        questions = [
+            template.format(topic=topic)
+            for template in random.sample(templates, num_questions)
+        ]
+        
         return questions
 
     async def _generate_citations(self, domain):
