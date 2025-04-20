@@ -90,7 +90,7 @@ research_generator/
 ├── models/                  # Analyzes conversations
 ├── utils/                   # Helper functions
 ├── examples/                # Example scripts to learn from
-└── tests/                   # Test files
+└── config/                   # config files
 ```
 
 ## Common Tasks
